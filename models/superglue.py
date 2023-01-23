@@ -62,9 +62,9 @@ def MLP(channels: List[int], do_bn: bool = True) -> nn.Module:
     return nn.Sequential(*layers)
 
 
-def normalize_keypoints(kpts, image_shape):
-    """ Normalize keypoints locations based on image image_shape"""
-    _, height, width = image_shape
+def normalize_keypoints(kpts, image_size):
+    """ Normalize keypoints locations based on image size"""
+    height, width = image_size
     one = kpts.new_tensor(1)
     size = torch.stack([one*width, one*height])[None]
     center = size / 2
@@ -242,8 +242,8 @@ class SuperGlue(nn.Module):
             }
 
         # Keypoint normalization.
-        kpts0 = normalize_keypoints(kpts0, data['image_size0'])
-        kpts1 = normalize_keypoints(kpts1, data['image_size1'])
+        kpts0 = normalize_keypoints(kpts0, data['image_size'])
+        kpts1 = normalize_keypoints(kpts1, data['image_size'])
 
         # Keypoint MLP encoder.
         desc0 = desc0 + self.kenc(kpts0, data['scores0'])
