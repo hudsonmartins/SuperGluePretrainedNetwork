@@ -2,10 +2,10 @@
 
 ### Research @ Magic Leap (CVPR 2020, Oral)
 
-# SuperGlue Inference and Evaluation Demo Script
+# SuperGlue Training, Inference and Evaluation Demo Scripts
 
 ## Introduction
-SuperGlue is a CVPR 2020 research project done at Magic Leap. The SuperGlue network is a Graph Neural Network combined with an Optimal Matching layer that is trained to perform matching on two sets of sparse image features. This repo includes PyTorch code and pretrained weights for running the SuperGlue matching network on top of [SuperPoint](https://arxiv.org/abs/1712.07629) keypoints and descriptors. Given a pair of images, you can use this repo to extract matching features across the image pair.
+SuperGlue is a CVPR 2020 research project done at Magic Leap. The SuperGlue network is a Graph Neural Network combined with an Optimal Matching layer that is trained to perform matching on two sets of sparse image features. This repo includes PyTorch code and pretrained weights for running the SuperGlue matching network on top of [SuperPoint](https://arxiv.org/abs/1712.07629) keypoints and descriptors. Given a pair of images, you can use this repo to extract matching features across the image pair. This fork contains the scripts to train the outdoor network with the MegaDepth dataset.
 
 <p align="center">
   <img src="assets/teaser.png" width="500">
