@@ -220,12 +220,12 @@ class SuperGlue(nn.Module):
         bin_score = torch.nn.Parameter(torch.tensor(1.))
         self.register_parameter('bin_score', bin_score)
 
-        assert self.config['weights'] in ['indoor', 'outdoor']
-        path = Path(__file__).parent
-        path = path / 'weights/superglue_{}.pth'.format(self.config['weights'])
-        self.load_state_dict(torch.load(str(path)))
-        print('Loaded SuperGlue model (\"{}\" weights)'.format(
-            self.config['weights']))
+        #assert self.config['weights'] in ['indoor', 'outdoor']
+        #path = Path(__file__).parent
+        #path = path / 'weights/superglue_{}.pth'.format(self.config['weights'])
+        #self.load_state_dict(torch.load(str(path)))
+        #print('Loaded SuperGlue model (\"{}\" weights)'.format(
+        #    self.config['weights']))
 
     def forward(self, data):
         """Run SuperGlue on a pair of keypoints and descriptors"""
@@ -282,4 +282,5 @@ class SuperGlue(nn.Module):
             'matches1': indices1, # use -1 for invalid match
             'matching_scores0': mscores0,
             'matching_scores1': mscores1,
+            'scores_matrix': scores
         }

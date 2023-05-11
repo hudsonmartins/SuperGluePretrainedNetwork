@@ -5,18 +5,10 @@ from collections import defaultdict
 import torch.nn.functional as F
 
 
-def preprocess_image(image, preprocessing=None):
+def preprocess_image(image):
     image = image.astype(np.float32)
-    image = np.moveaxis(image, -1, 0)
-    #image = np.expand_dims(image, 0)
-    if preprocessing == 'caffe':
-        # RGB -> BGR
-        image = image[:: -1, :, :]
-        # Zero-center by mean pixel
-        mean = np.array([103.939, 116.779, 123.68])
-        image = image - mean.reshape([3, 1, 1])
-    else:
-        pass
+    #image = np.moveaxis(image, -1, 0)
+    image = np.expand_dims(image, 0)
     return image
 
 
@@ -153,6 +145,11 @@ def save_model(path, model, optimizer, step, epoch, loss):
                 path)
     print(f'Model {path} saved!')
 
+def load_model(model, path):
+    print('Loading model ', path)
+    ckpt = torch.load(str(path))
+    model.load_state_dict(ckpt)
+    return model
 
 def load_model_weights(model, path, recover_state=False, modules=['gnn', 'final_proj']):
     print('Loading model ', path)
@@ -166,3 +163,95 @@ def load_model_weights(model, path, recover_state=False, modules=['gnn', 'final_
     if(recover_state):
         return model, ckpt['epoch'], ckpt['step'], ckpt['optimizer'], ckpt['loss']
     return model
+
+def interpolate_depth(pos, depth):
+
+    device = pos.device
+    ids = torch.arange(0, pos.size(1), device=device)
+    h, w = depth.size()
+    
+    i = pos[1, :]
+    j = pos[0, :]
+
+    # Valid corners
+    i_top_left = torch.floor(i).long()
+    j_top_left = torch.floor(j).long()
+    valid_top_left = torch.min(i_top_left >= 0, j_top_left >= 0)
+
+    i_top_right = torch.floor(i).long()
+    j_top_right = torch.ceil(j).long()
+    valid_top_right = torch.min(i_top_right >= 0, j_top_right < w)
+
+    i_bottom_left = torch.ceil(i).long()
+    j_bottom_left = torch.floor(j).long()
+    valid_bottom_left = torch.min(i_bottom_left < h, j_bottom_left >= 0)
+
+    i_bottom_right = torch.ceil(i).long()
+    j_bottom_right = torch.ceil(j).long()
+    valid_bottom_right = torch.min(i_bottom_right < h, j_bottom_right < w)
+
+    valid_corners = torch.min(
+        torch.min(valid_top_left, valid_top_right),
+        torch.min(valid_bottom_left, valid_bottom_right)
+    )
+
+    i_top_left = i_top_left[valid_corners]
+    j_top_left = j_top_left[valid_corners]
+
+    i_top_right = i_top_right[valid_corners]
+    j_top_right = j_top_right[valid_corners]
+
+    i_bottom_left = i_bottom_left[valid_corners]
+    j_bottom_left = j_bottom_left[valid_corners]
+
+    i_bottom_right = i_bottom_right[valid_corners]
+    j_bottom_right = j_bottom_right[valid_corners]
+
+    ids = ids[valid_corners]
+
+    # Valid depth
+    valid_depth = torch.min(
+        torch.min(
+            depth[i_top_left, j_top_left] > 0,
+            depth[i_top_right, j_top_right] > 0
+        ),
+        torch.min(
+            depth[i_bottom_left, j_bottom_left] > 0,
+            depth[i_bottom_right, j_bottom_right] > 0
+        )
+    )
+
+    i_top_left = i_top_left[valid_depth]
+    j_top_left = j_top_left[valid_depth]
+
+    i_top_right = i_top_right[valid_depth]
+    j_top_right = j_top_right[valid_depth]
+
+    i_bottom_left = i_bottom_left[valid_depth]
+    j_bottom_left = j_bottom_left[valid_depth]
+
+    i_bottom_right = i_bottom_right[valid_depth]
+    j_bottom_right = j_bottom_right[valid_depth]
+
+    ids = ids[valid_depth]
+
+    # Interpolation
+    i = i[ids]
+    j = j[ids]
+    dist_i_top_left = i - i_top_left.float()
+    dist_j_top_left = j - j_top_left.float()
+    w_top_left = (1 - dist_i_top_left) * (1 - dist_j_top_left)
+    w_top_right = (1 - dist_i_top_left) * dist_j_top_left
+    w_bottom_left = dist_i_top_left * (1 - dist_j_top_left)
+    w_bottom_right = dist_i_top_left * dist_j_top_left
+    
+    interpolated_depth = (
+        w_top_left * depth[i_top_left, j_top_left] +
+        w_top_right * depth[i_top_right, j_top_right] +
+        w_bottom_left * depth[i_bottom_left, j_bottom_left] +
+        w_bottom_right * depth[i_bottom_right, j_bottom_right]
+    )
+
+    pos = torch.cat([j.view(1, -1), i.view(1, -1)], dim=0)
+
+    return [interpolated_depth, pos, ids]

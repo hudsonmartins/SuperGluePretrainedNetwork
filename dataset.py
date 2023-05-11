@@ -165,7 +165,7 @@ class MegaDepthDataset(Dataset):
         
         image_path1 = pair_metadata['image_path1']
 
-        image1 = io.imread(image_path1, as_gray=False)
+        image1 = io.imread(image_path1, as_gray=True)
         assert(image1.shape[0] == depth1.shape[0] and image1.shape[1] == depth1.shape[1])
         intrinsics1 = pair_metadata['intrinsics1']
         pose1 = pair_metadata['pose1']
@@ -184,7 +184,7 @@ class MegaDepthDataset(Dataset):
         assert(np.min(depth2) >= 0)
         image_path2 = pair_metadata['image_path2']
         
-        image2 = io.imread(image_path2, as_gray=False)
+        image2 = io.imread(image_path2, as_gray=True)
         assert(image2.shape[0] == depth2.shape[0] and image2.shape[1] == depth2.shape[1])
         intrinsics2 = pair_metadata['intrinsics2']
         pose2 = pair_metadata['pose2']
@@ -246,8 +246,8 @@ class MegaDepthDataset(Dataset):
         (image1, depth1, intrinsics1, pose1, bbox1,
         image2, depth2, intrinsics2, pose2, bbox2) = self.recover_pair(self.dataset[idx])
 
-        image1 = preprocess_image(image1, preprocessing=self.preprocessing)
-        image2 = preprocess_image(image2, preprocessing=self.preprocessing)
+        image1 = preprocess_image(image1)
+        image2 = preprocess_image(image2)
 
         return {'image1': torch.from_numpy(image1.astype(np.float32)),
                 'depth1': torch.from_numpy(depth1.astype(np.float32)),
@@ -260,3 +260,33 @@ class MegaDepthDataset(Dataset):
                 'pose2': torch.from_numpy(pose2.astype(np.float32)),
                 'bbox2': torch.from_numpy(bbox2.astype(np.float32))}
 
+
+if __name__ == '__main__':
+    from skimage import io
+    from torch.utils.data import DataLoader
+
+    root_path = '/media/hudson/9708e369-632b-44b6-8c81-cc636dfdf2f34/home/hudson/Desktop/Unicamp/Doutorado/Projeto/datasets/MegaDepth_v1/'
+    train_dset = MegaDepthDataset(scene_list_path='megadepth_utils/train_scenes.txt',
+                                    scene_info_path=root_path+'scene_info/',
+                                    base_path=root_path,
+                                    save_dataset_path='dataset.pkl',
+                                    preprocessing='torch',
+                                    min_overlap_ratio=0.1,
+                                    max_overlap_ratio=0.7,
+                                    image_size=720,
+                                    train=False)
+    train_dataloader = DataLoader(train_dset, batch_size=1, num_workers=1)
+    train_dset.build_dataset()
+    train_pbar = tqdm(enumerate(train_dataloader), total=len(train_dataloader))
+    for batch_idx, batch in train_pbar:
+        img0 = batch['image1'][0][0].cpu().numpy()
+        depth0 = batch['depth1'][0][0].cpu().numpy()
+        depth0 = np.expand_dims(depth0, axis=1)
+        print(img0.shape)
+        print(depth0.shape)
+        io.imshow(img0)
+        io.show()
+        io.imshow(depth0)
+        io.show()
+        
+        
