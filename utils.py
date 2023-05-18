@@ -3,11 +3,12 @@ import torch
 import numpy as np
 from collections import defaultdict
 import torch.nn.functional as F
+import matplotlib.cm as cm
+from models.utils import make_matching_plot_fast
 
 
 def preprocess_image(image):
     image = image.astype(np.float32)
-    #image = np.moveaxis(image, -1, 0)
     image = np.expand_dims(image, 0)
     return image
 
@@ -16,6 +17,23 @@ def create_kpts_image(img, kpts, color=(255,255,255)):
     for k in kpts:
         img = cv2.circle(img, (int(k[0]), int(k[1])), 3, color, 2)
     return img
+
+
+def create_matches_image(img0, img1, kpts0, kpts1, matches, scores):
+    valid = matches > -1
+    mkpts0 = kpts0[valid]
+    mkpts1 = kpts1[matches[valid]]
+    mconf = scores[valid]
+    color = cm.jet(mconf)
+    text = ['SuperGlue',
+            'Keypoints: {}:{}'.format(len(kpts0), len(kpts1)),
+            'Matches: {}'.format(len(mkpts0)),]
+    
+    img = make_matching_plot_fast(img0, img1, kpts0, kpts1,
+                                  mkpts0, mkpts1, color, text, 
+                                  show_keypoints=True)
+    return img
+
 
 
 def pad_data(data, max_kpts, img_shape, device):
@@ -145,11 +163,13 @@ def save_model(path, model, optimizer, step, epoch, loss):
                 path)
     print(f'Model {path} saved!')
 
+
 def load_model(model, path):
     print('Loading model ', path)
     ckpt = torch.load(str(path))
     model.load_state_dict(ckpt)
     return model
+
 
 def load_model_weights(model, path, recover_state=False, modules=['gnn', 'final_proj']):
     print('Loading model ', path)
@@ -163,6 +183,20 @@ def load_model_weights(model, path, recover_state=False, modules=['gnn', 'final_
     if(recover_state):
         return model, ckpt['epoch'], ckpt['step'], ckpt['optimizer'], ckpt['loss']
     return model
+
+
+def scores_to_matches(scores, threshold=0.5):
+    max0, max1 = scores[:, :-1, :-1].max(2), scores[:, :-1, :-1].max(1)
+    indices0, indices1 = max0.indices, max1.indices
+    mutual0 = arange_like(indices0, 1)[None] == indices1.gather(1, indices0)
+    zero = scores.new_tensor(0)
+    mscores0 = torch.where(mutual0, max0.values.exp(), zero)
+    valid0 = mutual0 & (mscores0 > threshold)
+    indices0 = torch.where(valid0, indices0, indices0.new_tensor(-1))
+    
+    return indices0, mscores0
+
+
 
 def interpolate_depth(pos, depth):
 
