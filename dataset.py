@@ -55,7 +55,12 @@ class MegaDepthDataset(Dataset):
         self.load_from_file = load_from_file
         if(load_from_file):
             self.load_path = save_dataset_path
+    
 
+    def file_is_valid(self, file_path):
+        return (os.path.exists(file_path) and os.path.getsize(file_path) > 1000) #1kb
+        
+    
     def build_dataset(self):
         self.dataset = []
        
@@ -130,8 +135,8 @@ class MegaDepthDataset(Dataset):
                                             depth_paths[idx2].replace('phoenix/S6/zl548/MegaDepth_v1/', ''))
                     
                     
-                    if(os.path.exists(image_path1) and os.path.exists(image_path2) and  
-                    os.path.exists(depth_path1) and os.path.exists(depth_path2)):
+                    if(self.file_is_valid(image_path1) and self.file_is_valid(image_path2) and  
+                       self.file_is_valid(depth_path1) and self.file_is_valid(depth_path2)):
                         self.dataset.append({
                             'image_path1': image_path1,
                             'depth_path1': depth_path1,
@@ -155,7 +160,6 @@ class MegaDepthDataset(Dataset):
     def __len__(self):
         return len(self.dataset)
    
-
     def recover_pair(self, pair_metadata):
         depth_path1 = pair_metadata['depth_path1']
         
