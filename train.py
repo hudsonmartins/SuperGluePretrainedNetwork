@@ -30,7 +30,6 @@ def train(lr, num_epochs, save_every, pos_weight, neg_weight, train_dataloader, 
     
     iter = 0
     superpoint = SuperPoint(config.get('superpoint', {})).to(device)
-
     superglue = SuperGlue(config.get('superglue', {})).to(device)
     optimizer = optim.Adam(superglue.parameters(), lr=lr)
     start_epoch = 1
@@ -56,7 +55,7 @@ def train(lr, num_epochs, save_every, pos_weight, neg_weight, train_dataloader, 
             val_pbar = tqdm(enumerate(validation_dataloader), total=val_size)
         training_losses = []
         validation_losses = []
-                        
+        matches = None             
         if(not only_val):
             print('\n')
             print('='*20)
@@ -111,35 +110,35 @@ def train(lr, num_epochs, save_every, pos_weight, neg_weight, train_dataloader, 
                         #writer.add_scalar(title, np.mean(training_losses), iter)
                         #writer.flush()
                     iter+=1
-
-            #Adding predicted matches to tensorboard
-            m_tb, sc_tb = scores_to_matches(matches, config['superglue']['match_threshold'])
-            m_tb = m_tb.detach().cpu().numpy()
-            sc_tb = sc_tb.detach().cpu().numpy()
-            imgs0_cpu = [im0.cpu().numpy() * 255 for im0 in data['image0']]
-            imgs1_cpu = [im1.cpu().numpy() * 255 for im1 in data['image1']]
-            kpts0_cpu = [k0.cpu().numpy() for k0 in data['keypoints0']]
-            kpts1_cpu = [k1.cpu().numpy() for k1 in data['keypoints1']]
-            m_imgs = np.array([create_matches_image(im0[0], im1[0], k0, k1, m, s)
-                        for im0, im1, k0, k1, m, s 
-                        in zip(imgs0_cpu, imgs1_cpu, kpts0_cpu, kpts1_cpu, m_tb, sc_tb)])
-            m_imgs = torch.from_numpy(m_imgs).permute(0, 3, 1, 2)
-            imgs_grid = vutils.make_grid(m_imgs)
-            writer.add_image('train/pred', imgs_grid, epoch_idx)
-            
-            #Adding ground truth matches to tensorboard
-            gt_m_tb, gt_sc_tb = scores_to_matches(gt_matches, config['superglue']['match_threshold'])
-            gt_m_tb = gt_m_tb.detach().cpu().numpy()
-            gt_sc_tb = gt_sc_tb.detach().cpu().numpy()
-            gt_m_imgs = np.array([create_matches_image(im0[0], im1[0], k0, k1, m, s)
+            if(matches != None):
+                #Adding predicted matches to tensorboard
+                m_tb, sc_tb = scores_to_matches(matches, config['superglue']['match_threshold'])
+                m_tb = m_tb.detach().cpu().numpy()
+                sc_tb = sc_tb.detach().cpu().numpy()
+                imgs0_cpu = [im0.cpu().numpy() * 255 for im0 in data['image0']]
+                imgs1_cpu = [im1.cpu().numpy() * 255 for im1 in data['image1']]
+                kpts0_cpu = [k0.cpu().numpy() for k0 in data['keypoints0']]
+                kpts1_cpu = [k1.cpu().numpy() for k1 in data['keypoints1']]
+                m_imgs = np.array([create_matches_image(im0[0], im1[0], k0, k1, m, s)
                             for im0, im1, k0, k1, m, s 
-                            in zip(imgs0_cpu, imgs1_cpu, kpts0_cpu, kpts1_cpu, gt_m_tb, gt_sc_tb)])
+                            in zip(imgs0_cpu, imgs1_cpu, kpts0_cpu, kpts1_cpu, m_tb, sc_tb)])
+                m_imgs = torch.from_numpy(m_imgs).permute(0, 3, 1, 2)
+                imgs_grid = vutils.make_grid(m_imgs)
+                writer.add_image('train/pred', imgs_grid, epoch_idx)
+                
+                #Adding ground truth matches to tensorboard
+                gt_m_tb, gt_sc_tb = scores_to_matches(gt_matches, config['superglue']['match_threshold'])
+                gt_m_tb = gt_m_tb.detach().cpu().numpy()
+                gt_sc_tb = gt_sc_tb.detach().cpu().numpy()
+                gt_m_imgs = np.array([create_matches_image(im0[0], im1[0], k0, k1, m, s)
+                                for im0, im1, k0, k1, m, s 
+                                in zip(imgs0_cpu, imgs1_cpu, kpts0_cpu, kpts1_cpu, gt_m_tb, gt_sc_tb)])
 
-            gt_m_imgs = torch.from_numpy(gt_m_imgs).permute(0, 3, 1, 2)
-            gt_imgs_grid = vutils.make_grid(gt_m_imgs)
-            writer.add_image('train/gt', gt_imgs_grid, epoch_idx)
-            writer.add_scalar('Training_loss ', np.mean(training_losses), epoch_idx)
-            writer.flush()
+                gt_m_imgs = torch.from_numpy(gt_m_imgs).permute(0, 3, 1, 2)
+                gt_imgs_grid = vutils.make_grid(gt_m_imgs)
+                writer.add_image('train/gt', gt_imgs_grid, epoch_idx)
+                writer.add_scalar('Training_loss ', np.mean(training_losses), epoch_idx)
+                writer.flush()
             
         if(validation_dataloader != None):
             print('\n')
@@ -175,33 +174,33 @@ def train(lr, num_epochs, save_every, pos_weight, neg_weight, train_dataloader, 
                     current_loss = loss.item()
                     validation_losses.append(current_loss)
                     val_pbar.set_postfix(loss=('%.4f' % np.mean(validation_losses)))                                   
-
-                #Adding predicted matches to tensorboard
-                m_tb, sc_tb = scores_to_matches(matches, config['superglue']['match_threshold'])
-                m_tb = m_tb.detach().cpu().numpy()
-                sc_tb = sc_tb.detach().cpu().numpy()
-                imgs0_cpu = [im0.cpu().numpy() * 255 for im0 in data['image0']]
-                imgs1_cpu = [im1.cpu().numpy() * 255 for im1 in data['image1']]
-                kpts0_cpu = [k0.cpu().numpy() for k0 in data['keypoints0']]
-                kpts1_cpu = [k1.cpu().numpy() for k1 in data['keypoints1']]
-                m_imgs = np.array([create_matches_image(im0[0], im1[0], k0, k1, m, s)
-                            for im0, im1, k0, k1, m, s 
-                            in zip(imgs0_cpu, imgs1_cpu, kpts0_cpu, kpts1_cpu, m_tb, sc_tb)])
-                m_imgs = torch.from_numpy(m_imgs).permute(0, 3, 1, 2)
-                imgs_grid = vutils.make_grid(m_imgs)
-                writer.add_image('val/pred', imgs_grid, epoch_idx)
-            
-                #Adding ground truth matches to tensorboard
-                gt_m_tb, gt_sc_tb = scores_to_matches(gt_matches, config['superglue']['match_threshold'])
-                gt_m_tb = gt_m_tb.detach().cpu().numpy()
-                gt_sc_tb = gt_sc_tb.detach().cpu().numpy()
-                gt_m_imgs = np.array([create_matches_image(im0[0], im1[0], k0, k1, m, s)
+                if(matches != None):
+                    #Adding predicted matches to tensorboard
+                    m_tb, sc_tb = scores_to_matches(matches, config['superglue']['match_threshold'])
+                    m_tb = m_tb.detach().cpu().numpy()
+                    sc_tb = sc_tb.detach().cpu().numpy()
+                    imgs0_cpu = [im0.cpu().numpy() * 255 for im0 in data['image0']]
+                    imgs1_cpu = [im1.cpu().numpy() * 255 for im1 in data['image1']]
+                    kpts0_cpu = [k0.cpu().numpy() for k0 in data['keypoints0']]
+                    kpts1_cpu = [k1.cpu().numpy() for k1 in data['keypoints1']]
+                    m_imgs = np.array([create_matches_image(im0[0], im1[0], k0, k1, m, s)
                                 for im0, im1, k0, k1, m, s 
-                                in zip(imgs0_cpu, imgs1_cpu, kpts0_cpu, kpts1_cpu, gt_m_tb, gt_sc_tb)])
+                                in zip(imgs0_cpu, imgs1_cpu, kpts0_cpu, kpts1_cpu, m_tb, sc_tb)])
+                    m_imgs = torch.from_numpy(m_imgs).permute(0, 3, 1, 2)
+                    imgs_grid = vutils.make_grid(m_imgs)
+                    writer.add_image('val/pred', imgs_grid, epoch_idx)
+                
+                    #Adding ground truth matches to tensorboard
+                    gt_m_tb, gt_sc_tb = scores_to_matches(gt_matches, config['superglue']['match_threshold'])
+                    gt_m_tb = gt_m_tb.detach().cpu().numpy()
+                    gt_sc_tb = gt_sc_tb.detach().cpu().numpy()
+                    gt_m_imgs = np.array([create_matches_image(im0[0], im1[0], k0, k1, m, s)
+                                    for im0, im1, k0, k1, m, s 
+                                    in zip(imgs0_cpu, imgs1_cpu, kpts0_cpu, kpts1_cpu, gt_m_tb, gt_sc_tb)])
 
-                gt_m_imgs = torch.from_numpy(gt_m_imgs).permute(0, 3, 1, 2)
-                gt_imgs_grid = vutils.make_grid(gt_m_imgs)
-                writer.add_image('val/gt', gt_imgs_grid, epoch_idx)
+                    gt_m_imgs = torch.from_numpy(gt_m_imgs).permute(0, 3, 1, 2)
+                    gt_imgs_grid = vutils.make_grid(gt_m_imgs)
+                    writer.add_image('val/gt', gt_imgs_grid, epoch_idx)
 
             title = 'Validation_loss '
             writer.add_scalar(title, np.mean(validation_losses), epoch_idx)
@@ -215,7 +214,7 @@ def train(lr, num_epochs, save_every, pos_weight, neg_weight, train_dataloader, 
 
 
 def main(lr, batch_size, num_epochs, save_every, dataset_path, train_scenes_path, 
-        load_model_path, valid_scenes_path, logs_dir, max_iter,
+        load_model_path, valid_scenes_path, logs_dir, max_iter, patches_path,
         checkpoints_path, save_dataset_path, load_dataset_from_file,
         pos_weight, neg_weight, only_val):
     
@@ -234,7 +233,7 @@ def main(lr, batch_size, num_epochs, save_every, dataset_path, train_scenes_path
     use_cuda = torch.cuda.is_available()
     device = torch.device("cuda:0" if use_cuda else "cpu")                              
 
-    random_seed = 33
+    random_seed = 42
     #Seed
     torch.manual_seed(random_seed)
     if use_cuda:
@@ -247,6 +246,8 @@ def main(lr, batch_size, num_epochs, save_every, dataset_path, train_scenes_path
                             min_overlap_ratio=0.1,
                             max_overlap_ratio=0.7,
                             image_size=720,
+                            patches_path=patches_path,
+                            random_seed=random_seed,
                             save_dataset_path=os.path.join(save_dataset_path, "train_dset.pkl"),
                             load_from_file=load_dataset_from_file)
 
@@ -258,6 +259,8 @@ def main(lr, batch_size, num_epochs, save_every, dataset_path, train_scenes_path
                                 min_overlap_ratio=0.1,
                                 max_overlap_ratio=0.7,
                                 image_size=720,
+                                patches_path=patches_path,
+                                random_seed=random_seed,
                                 save_dataset_path=os.path.join(save_dataset_path, "valid_dset.pkl"),
                                 load_from_file=load_dataset_from_file)
 
@@ -287,6 +290,7 @@ if __name__ == '__main__':
     parser.add_argument("--checkpoints_path", default="models/", help="Path to save checkpoints")   
     parser.add_argument("--save_dataset_path", default="logs/", help="Path to save built dataset")   
     parser.add_argument("--load_dataset_from_file", action='store_true', help="True if we should load the dataset from a pickle file")   
+    parser.add_argument("--patches_path", default='patches', help="The path to the patches folder")   
     parser.add_argument("--learning_rate", default=0.0001, type=float, help="Learning Rate")
     parser.add_argument("--batch_size", default=32, type=int, help="Batch Size")
     parser.add_argument("--num_epochs", default=100, type=int, help="Path to logs")
@@ -299,6 +303,6 @@ if __name__ == '__main__':
     
     main(args.learning_rate, args.batch_size, args.num_epochs, args.save_every,
          args.dataset_path, args.train_scenes_path, args.load_model_path, 
-         args.valid_scenes_path, args.logs_dir, args.max_iter, args.checkpoints_path, 
-         args.save_dataset_path, args.load_dataset_from_file,
+         args.valid_scenes_path, args.logs_dir, args.max_iter, args.patches_path,
+         args.checkpoints_path, args.save_dataset_path, args.load_dataset_from_file,
          args.pos_weight, args.neg_weight, args.only_val)

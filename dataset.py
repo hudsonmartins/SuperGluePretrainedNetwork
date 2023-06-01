@@ -5,7 +5,6 @@
 
 import os
 import torch
-import cv2
 import h5py
 import pickle
 import numpy as np
@@ -14,7 +13,9 @@ from torch.utils.data import Dataset
 from tqdm import tqdm
 from skimage.transform import resize
 from utils import preprocess_image
-
+from pathlib import Path
+from AugmentedPatchInjector import AugmentedPatchInjector
+import random
 
 class MegaDepthDataset(Dataset):
     def __init__(self,
@@ -29,18 +30,26 @@ class MegaDepthDataset(Dataset):
                  pairs_per_scene=100,
                  image_size=256,
                  save_dataset_path='/local/dataset/megadepth/dataset.pkl',
+                 patches_path='patches',
+                 random_seed=42,
                  load_from_file=False):
         self.scenes = []
         with open(scene_list_path, 'r') as f:
             lines = f.readlines()
             for line in lines:
                 self.scenes.append(line.strip('\n'))
-        
+        self.random_seed = random_seed
         self.scene_info_path = scene_info_path
         self.base_path = base_path
 
         self.train = train
+        if(not self.train):
+            np.random.seed(self.random_seed)
+            random.seed(self.random_seed)
 
+        self.patch_injector = AugmentedPatchInjector(Path(patches_path), 
+                                                    target_height=image_size, 
+                                                    target_width=image_size)
         self.preprocessing = preprocessing
 
         self.min_overlap_ratio = min_overlap_ratio
@@ -53,13 +62,17 @@ class MegaDepthDataset(Dataset):
         self.dataset = []
         self.save_path = save_dataset_path
         self.load_from_file = load_from_file
+
         if(load_from_file):
             self.load_path = save_dataset_path
-    
 
     def file_is_valid(self, file_path):
         return (os.path.exists(file_path) and os.path.getsize(file_path) > 1000) #1kb
-        
+
+    def inject_noise(self, image): 
+        #patch injection
+        image = self.patch_injector.inject(image)
+        return image        
     
     def build_dataset(self):
         self.dataset = []
@@ -74,7 +87,7 @@ class MegaDepthDataset(Dataset):
         else:
             if not self.train:
                 np_random_state = np.random.get_state()
-                np.random.seed(42)
+                np.random.seed(self.random_seed)
                 print('Building the validation dataset...')
             else:
                 print('Building a new training dataset...')
@@ -219,10 +232,16 @@ class MegaDepthDataset(Dataset):
 
         resize_matrix2 = [[resize_factor2[0], 0, 0],
                           [0, resize_factor2[1], 0],
-                          [0, 0, 1]]  
-        intrinsics2 = np.matmul(resize_matrix2, intrinsics2)
+                          [0, 0, 1]] 
+        intrinsics2 = np.matmul(resize_matrix2, intrinsics2)       
+        if(not self.train):
+            random.seed(self.random_seed)
+        image1 = self.inject_noise(image1*255)/255
+        image2 = self.inject_noise(image2*255)/255
+
         return (image1, depth1, intrinsics1, pose1, bbox1,
                 image2, depth2, intrinsics2, pose2, bbox2)
+
 
     def crop(self, image1, image2, central_match):
         bbox1_i = max(int(central_match[0]) - self.image_size // 2, 0)
@@ -246,13 +265,12 @@ class MegaDepthDataset(Dataset):
                        bbox2_j : bbox2_j + self.image_size],
                 np.array([bbox2_i, bbox2_j]))
 
+
     def __getitem__(self, idx):
         (image1, depth1, intrinsics1, pose1, bbox1,
         image2, depth2, intrinsics2, pose2, bbox2) = self.recover_pair(self.dataset[idx])
-
         image1 = preprocess_image(image1)
         image2 = preprocess_image(image2)
-
         return {'image1': torch.from_numpy(image1.astype(np.float32)),
                 'depth1': torch.from_numpy(depth1.astype(np.float32)),
                 'intrinsics1': torch.from_numpy(intrinsics1.astype(np.float32)),
