@@ -68,6 +68,7 @@ def train(lr, num_epochs, save_every, pos_weight, neg_weight, train_dataloader, 
                     break
                 if(batch_idx < start_step and epoch_idx == start_epoch):
                     continue
+                superpoint.train()
                 superglue.train()
                 optimizer.zero_grad()
                 img0 = batch['image1'].to(device)                
@@ -144,6 +145,7 @@ def train(lr, num_epochs, save_every, pos_weight, neg_weight, train_dataloader, 
             print('='*20)
             print('Validation...')
             #Validation Loop
+            superpoint.eval()
             superglue.eval()
             with torch.no_grad():
                 for batch_idx, batch in val_pbar:
