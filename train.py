@@ -103,12 +103,11 @@ def train(lr, num_epochs, save_every, pos_weight, neg_weight, train_dataloader, 
                     train_pbar.set_postfix(loss=('%.4f' % np.mean(training_losses)))
                     
                     if(batch_idx%save_every == 0):
-                        output_name = f'model_{epoch_idx}_{batch_idx}'
+                        torch.save(superpoint.state_dict(), os.path.join(checkpoints_path, 
+                                                                         f'superpoint_{epoch_idx}_{batch_idx}.pth'))
+                        output_name = f'superglue_{epoch_idx}_{batch_idx}'
                         save_model(os.path.join(checkpoints_path, output_name+".pth"), 
                                 superglue, optimizer, batch_idx, epoch_idx, loss)
-                        #title = 'Training_loss_iterations '
-                        #writer.add_scalar(title, np.mean(training_losses), iter)
-                        #writer.flush()
                     iter+=1
             if(matches != None):
                 #Adding predicted matches to tensorboard
@@ -207,7 +206,8 @@ def train(lr, num_epochs, save_every, pos_weight, neg_weight, train_dataloader, 
             writer.flush()
         
         if(not only_val):
-            output_name = f'model_{epoch_idx}'
+            torch.save(superpoint.state_dict(), os.path.join(checkpoints_path, f'superpoint_{epoch_idx}.pth'))
+            output_name = f'superglue_{epoch_idx}'
             save_model(os.path.join(checkpoints_path, output_name+".pth"), 
                     superglue, optimizer, len(train_dataloader), epoch_idx, loss)
     
