@@ -31,21 +31,16 @@ class MegaDepthDataset(Dataset):
                  image_size=256,
                  save_dataset_path='/local/dataset/megadepth/dataset.pkl',
                  patches_path='patches',
-                 random_seed=42,
                  load_from_file=False):
         self.scenes = []
         with open(scene_list_path, 'r') as f:
             lines = f.readlines()
             for line in lines:
                 self.scenes.append(line.strip('\n'))
-        self.random_seed = random_seed
         self.scene_info_path = scene_info_path
         self.base_path = base_path
 
         self.train = train
-        if(not self.train):
-            np.random.seed(self.random_seed)
-            random.seed(self.random_seed)
 
         self.patch_injector = AugmentedPatchInjector(Path(patches_path), 
                                                     target_height=image_size, 
@@ -66,14 +61,23 @@ class MegaDepthDataset(Dataset):
         if(load_from_file):
             self.load_path = save_dataset_path
 
+
     def file_is_valid(self, file_path):
         return (os.path.exists(file_path) and os.path.getsize(file_path) > 1000) #1kb
 
+    
     def inject_noise(self, image): 
         #patch injection
         image = self.patch_injector.inject(image)
         return image        
-    
+
+
+    def augment(self, image, depth, intrinsics):
+        #inject noise
+        image = self.inject_noise(image*255)/255
+        return image, depth, intrinsics
+
+
     def build_dataset(self):
         self.dataset = []
        
@@ -87,7 +91,7 @@ class MegaDepthDataset(Dataset):
         else:
             if not self.train:
                 np_random_state = np.random.get_state()
-                np.random.seed(self.random_seed)
+
                 print('Building the validation dataset...')
             else:
                 print('Building a new training dataset...')
@@ -169,10 +173,13 @@ class MegaDepthDataset(Dataset):
 
             if not self.train:
                 np.random.set_state(np_random_state)
+
     
+
     def __len__(self):
         return len(self.dataset)
    
+
     def recover_pair(self, pair_metadata):
         depth_path1 = pair_metadata['depth_path1']
         
@@ -234,10 +241,9 @@ class MegaDepthDataset(Dataset):
                           [0, resize_factor2[1], 0],
                           [0, 0, 1]] 
         intrinsics2 = np.matmul(resize_matrix2, intrinsics2)       
-        if(not self.train):
-            random.seed(self.random_seed)
-        image1 = self.inject_noise(image1*255)/255
-        image2 = self.inject_noise(image2*255)/255
+        
+        image1, depth1, intrinsics1 = self.augment(image1, depth1, intrinsics1)
+        image2, depth2, intrinsics2 = self.augment(image2, depth2, intrinsics2)
 
         return (image1, depth1, intrinsics1, pose1, bbox1,
                 image2, depth2, intrinsics2, pose2, bbox2)
