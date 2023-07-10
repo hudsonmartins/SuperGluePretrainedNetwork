@@ -172,7 +172,7 @@ def train(lr, num_epochs, save_every, pos_weight, neg_weight, train_dataloader, 
                     validation_losses.append(current_loss)
                     val_pbar.set_postfix(loss=('%.4f' % np.mean(validation_losses)))                                   
 
-                    if(matches != None):
+                    if(batch_idx == 0 and matches != None):
                         #Adding predicted matches to tensorboard
                         m_tb, sc_tb = scores_to_matches(matches, config['superglue']['match_threshold'])
                         m_tb = m_tb.detach().cpu().numpy()
