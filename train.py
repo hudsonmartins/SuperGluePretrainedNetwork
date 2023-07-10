@@ -30,6 +30,7 @@ def train(lr, num_epochs, save_every, pos_weight, neg_weight, train_dataloader, 
     start_epoch = 1
     start_step = 0
     loss = None
+    best_loss = None
     if(load_model_path == None):
         path = Path(__file__).parent
         path = path / 'models/weights/superglue_outdoor.pth'
@@ -98,7 +99,7 @@ def train(lr, num_epochs, save_every, pos_weight, neg_weight, train_dataloader, 
                     training_losses.append(current_loss)
                     train_pbar.set_postfix(loss=('%.4f' % np.mean(training_losses)))
                     
-                    if(batch_idx%save_every == 0):
+                    if(batch_idx%save_every == 0 and batch_idx != 0):
                         torch.save(superpoint.state_dict(), os.path.join(checkpoints_path, 
                                                                          f'superpoint_{epoch_idx}_{batch_idx}.pth'))
                         output_name = f'superglue_{epoch_idx}_{batch_idx}'
@@ -206,12 +207,16 @@ def train(lr, num_epochs, save_every, pos_weight, neg_weight, train_dataloader, 
             title = 'Validation_loss '
             writer.add_scalar(title, np.mean(validation_losses), epoch_idx)
             writer.flush()
+
+            
         
         if(not only_val):
-            torch.save(superpoint.state_dict(), os.path.join(checkpoints_path, f'superpoint_{epoch_idx}.pth'))
-            output_name = f'superglue_{epoch_idx}'
-            save_model(os.path.join(checkpoints_path, output_name+".pth"), 
-                    superglue, optimizer, len(train_dataloader), epoch_idx, loss)
+            if(best_loss == None or np.mean(validation_losses) < best_loss):
+                best_loss = np.mean(validation_losses)
+                torch.save(superpoint.state_dict(), os.path.join(checkpoints_path, f'superpoint_{epoch_idx}.pth'))
+                output_name = f'superglue_{epoch_idx}'
+                save_model(os.path.join(checkpoints_path, output_name+".pth"), 
+                            superglue, optimizer, len(train_dataloader), epoch_idx, loss)
     
 
 
